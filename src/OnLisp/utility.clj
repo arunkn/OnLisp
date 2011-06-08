@@ -93,4 +93,13 @@
     (rec tree ())))
 
 (defn before [lst x y & {:keys [test] :or {test =}}]
-)
+  (when lst
+    (let [f (first lst)]
+      (cond (test x f) lst
+            (test y f) false
+            :else (recur (rest lst) x y test)))))
+
+(defn after [lst x y & {:keys [test] :or {test =}}]
+  (let [rst (before y x lst :test test)]
+    (and rst
+         (contains? rst x))))
