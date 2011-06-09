@@ -1,7 +1,7 @@
 (ns on_lisp.utility)
 (require 'swank.core)
 
-(defn find-first [xs func]
+(defn find-first-with-val [xs func]
   (if-not xs
     nil
     (let [val (func (first xs))]
@@ -92,6 +92,13 @@
 			(if (test (first tree)) acc (prepend (first tree) acc)))))]
     (rec tree ())))
 
+(defn exists? [lst obj & {:keys [test] :or {test =}}]
+  (when lst
+    (if (test (first lst) obj )
+      lst
+      (recur (next lst) obj test))))
+
+
 (defn before [lst x y & {:keys [test] :or {test =}}]
   (when lst
     (let [f (first lst)]
@@ -100,6 +107,22 @@
             :else (recur (rest lst) x y test)))))
 
 (defn after [lst x y & {:keys [test] :or {test =}}]
-  (let [rst (before y x lst :test test)]
+  (let [rst (before lst y x :test test)]
     (and rst
-         (contains? rst x))))
+         (some identity (map #(test x %) rst)))))
+
+(defn duplicate [lst obj & {:keys [test] :or {test =}}]
+  (let [pos (exists? lst obj)]
+    (and pos
+         (exists? (rest pos) obj))))
+
+(defn split-if [lst fn]
+  (loop [src lst
+         acc ()]
+    (when src
+      (if (fn (first src))
+        [(reverse acc) src]
+        (recur (next src) (conj acc (first src)))))))
+
+(defn most [lst fn]
+  (second (last (into (sorted-map) (group-by fn lst)))))
