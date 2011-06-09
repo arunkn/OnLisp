@@ -124,5 +124,40 @@
         [(reverse acc) src]
         (recur (next src) (conj acc (first src)))))))
 
-(defn most [lst fn]
-  (second (last (into (sorted-map) (group-by fn lst)))))
+(defn most [lst fn & {:keys [compare default] :or {compare > default nil}}]
+  (letfn [(find-most [lst best-val best-ele]
+            (if lst
+              (let [cur-ele (first lst)
+                    cur-val (fn cur-ele)]
+                (if (compare best-val cur-val)
+                  (recur (next lst) best-val best-ele)
+                  (recur (next lst) cur-val cur-ele)))
+              [best-val best-ele]))]
+    (if (seq lst)
+      (find-most (next lst) (fn (first lst)) (first lst))
+      default)))
+
+(defn best [lst fn]
+  (if (seq lst)
+    (loop [lst lst
+          wins (first lst)]
+      (if (seq lst)
+        (if (fn wins (first lst))
+          (recur (next lst) wins)
+          (recur (next lst) (first lst)))
+        wins))))
+
+(defn most-n [lst fn]
+  (if-not (seq lst)
+    [nil nil]
+    (loop [result (list (first lst))
+          most (fn (first lst))
+          remaining (next lst)]
+      (if-not remaining
+        [result most]
+        (let [score (fn (first remaining))]
+          (cond (< score most) (recur result most (next remaining))
+                (> score most) (recur (list (first remaining)) score (next remaining))
+                :else (recur (conj  result (first remaining))
+                             most
+                             (next remaining))))))))
