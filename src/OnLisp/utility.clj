@@ -161,3 +161,25 @@
                 :else (recur (conj  result (first remaining))
                              most
                              (next remaining))))))))
+
+(defn map-a->b [fn a b & {:keys [step] :or {step 1}}]
+  (loop [i a
+         result ()]
+    (if (> i b)
+      (reverse result)
+      (recur (+ step i) (conj result (fn i))))))
+
+(defn map-0->n [fn n & {:keys [step] :or {step 1}}]
+  (map-a->b fn 0 n step))
+
+(defn map-1->n [fn n & {:keys [step] :or {step 1}}]
+  (map-a->b fn 1 n step))
+
+(defn map-> [fn start test-fn succ-fn]
+  (loop [i start
+         result ()]
+    (if (test-fn i)
+      (reverse result)
+      (recur (succ-fn i) (conj result (fn i))))))
+
+
