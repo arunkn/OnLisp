@@ -1,4 +1,4 @@
-(ns on_lisp.utility)
+(ns OnLisp.utility)
 (require 'swank.core)
 
 (defn find-first-with-val [xs func]
@@ -31,13 +31,6 @@
   ([lst then] 
      `(if (empty? ~lst) ~then)))
 
-;; (defmacro if-pred?
-;;   ([pred lst then] `(if (~pred ~lst) ~then nil))
-;;   ([pred lst then else] `(if (~pred ~lst) ~then ~else)))
-
-;; (defmacro another-if-empty? [lst then & else]
-;;   `(if-pred? empty? ~lst ~then ~else))
-
 (defmacro if-nil? 
   ([lst then else] 
      `(if (nil? ~lst) ~then ~else))
@@ -61,9 +54,9 @@
       [(rec [source acc]
 	    (let [rem (nthnext source n)]
 	      (if-nil? rem
-		       (reverse (conj acc (take n source)))
-		       (recur rem (conj acc (take n source))))))]
-    (rec lst ())))
+		       (persistent! (conj! acc (take n source)))
+		       (recur rem (conj! acc (take n source))))))]
+    (rec lst (transient []))))
 
 (defn first-coll? [coll] (coll? (first coll)))
 
@@ -118,11 +111,11 @@
 
 (defn split-if [lst fn]
   (loop [src lst
-         acc ()]
+         acc (transient [])]
     (when src
       (if (fn (first src))
-        [(reverse acc) src]
-        (recur (next src) (conj acc (first src)))))))
+        [(persistent! acc) src]
+        (recur (next src) (conj! acc (first src)))))))
 
 (defn most [lst fn & {:keys [compare default] :or {compare > default nil}}]
   (letfn [(find-most [lst best-val best-ele]
@@ -164,10 +157,10 @@
 
 (defn map-a->b [fn a b & {:keys [step] :or {step 1}}]
   (loop [i a
-         result ()]
+         result (transient [])]
     (if (> i b)
-      (reverse result)
-      (recur (+ step i) (conj result (fn i))))))
+      (persistent! result)
+      (recur (+ step i) (conj! result (fn i))))))
 
 (defn map-0->n [fn n & {:keys [step] :or {step 1}}]
   (map-a->b fn 0 n step))
@@ -177,9 +170,47 @@
 
 (defn map-> [fn start test-fn succ-fn]
   (loop [i start
-         result ()]
+         result (transient [])]
     (if (test-fn i)
-      (reverse result)
-      (recur (succ-fn i) (conj result (fn i))))))
+      (persistent! result)
+      (recur (succ-fn i) (conj! result (fn i))))))
 
+(defn mapcars [fn & lsts]
+  (letfn
+      [(find-res [lsts acc]
+		 (if (seq lsts)
+		   (recur (rest lsts)
+			  (concat acc
+				  (map fn (first lsts))))
+		   acc))]
+    (find-res lsts ())))
 
+(defn atom? [arg]
+  (not (sequential? arg)))
+
+(defn rmapcar [fn & args]
+  (if (some atom? args)
+    (apply fn args)
+    (apply map
+	   #(apply rmapcar fn %&)
+	   args)))
+
+;;; IO Functions
+(defn readlist [& args]
+  (read-string
+   (str "("
+    (apply read-line args)
+    ")")))
+
+;;; TODO: Complete IO Functions
+
+(defn mkstr [& args]
+  (with-out-str
+    (doseq [i args]
+      (print i))))
+
+(defn reread [& args]
+  (read-string (mkstr args)))
+
+(defn explode [sym]
+  (map #(symbol (str %)) (seq (str sym))))
