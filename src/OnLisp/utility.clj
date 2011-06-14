@@ -15,6 +15,12 @@
 (defn append1 [lst obj]
   (concat lst (list obj)))
 
+(defn min-length [coll lth]
+  (when coll
+    (if (zero? lth)
+      coll
+      (recur (next coll) (dec lth)))))
+
 (defn mklist [obj]
   (if (list? obj)
     obj
