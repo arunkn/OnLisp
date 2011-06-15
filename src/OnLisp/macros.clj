@@ -137,13 +137,15 @@
 
 ;;; condlet
 ;;; Usage:
-;; (condlet (((= 1 2) (x 'a) (y 'b))
-;;           ((= 1 1) (y 'c) (x 'd))
-;; 	  (:else   (x 'e) (z 'f)))
-;; 	 (list x y z))
+(condlet (((= 1 2) (x 'a) (y 'b))
+          ((= 1 1) (y 'c) (x 'd))
+	  (:else   (x 'e) (z 'f)))
+	 (list x y z))
 ;;; The result will be (d c nil)
 
-;;; TODO: Finish condlet
+;;; vars:    will be a list of (symbol, gensym).
+;;; clauses: a condlet clause
+;;; This function should return the list of bindings that should be established for the clause
 (defn condlet-binds [vars clause]
   (vec (mapcat (fn [bindform]
 		 (if (list? bindform)
@@ -151,6 +153,12 @@
 			 (second bindform))))
 	       (rest clause))))
 
+;;; This function should complete the `cond` form.
+;;; For the above usage the input to this function will be
+;; (((= 1 2) (x 'a) (y 'b))
+;;           ((= 1 1) (y 'c) (x 'd))
+;; 	  (:else   (x 'e) (z 'f)))
+;;; With the above input the function should turn things as correct parameters for cond
 (defn condlet-clause [vars clause bodfn]
   `(~(first clause) (let ~(vec (mapcat #(list (second %) nil) vars))
 		      (let ~(condlet-binds vars clause)
