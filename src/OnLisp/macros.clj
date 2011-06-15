@@ -214,6 +214,13 @@
 		  choices)))))
 
 
+;;; Example Usage
+;; (let [lst '("Arun" 2 3)]
+;;   (>case (first lst)
+;; 	 (5)      (println "5")
+;; 	 ("Arun") (println "Arun")
+;; 	 (1) (println "1")
+;; 	 :else "Unknown"))
 (defmacro >case [expr & clauses]
   (letfn [(>casex [g cl]
 		  (let [key (first cl)
@@ -224,11 +231,6 @@
 								       key))))))]
    (let [g (gensym)]
      `(let [~g ~expr]
-	(cond ~@(map #(>casex g %)
-		     clauses))))))
+	(cond ~@(mapcat #(>casex g %)
+			(partition 2 clauses)))))))
 
-(let [lst '(1 2 3)]
-  (>case (first lst)
-	 (5      (println "5"))
-	 ("Arun" (println "Arun"))
-	 (:else "Unknown")))
