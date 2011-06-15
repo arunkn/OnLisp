@@ -111,13 +111,6 @@
      (when ~var
        ~@body)))
 
-(defmacro when-bind* [binds & body]
-  (if (empty? binds)
-    `(do
-       ~@body)
-    `(let [~@(first binds)]
-       (if ~(ffirst binds)
-	 (when-bind* ~(rest binds) ~@body)))))
 
 ;;; Example usage. The following wont be evaluated because the value of z will
 ;;; be nil
@@ -126,32 +119,43 @@
 ;; 	     [z (odd? (dec x))]]
 ;; 	    (println "x:" x "y:" y "z:" z))
 
-(defmacro with-genyms [syms & body]
-  (println "syms:" syms)
-  `(let ~(vec (mapcat #(list `~% `(gensym)) syms))
-     ~@body))
+(defmacro when-bind* [binds & body]
+  (if (empty? binds)
+    `(do
+       ~@body)
+    `(let [~@(first binds)]
+       (if ~(ffirst binds)
+	 (when-bind* ~(rest binds) ~@body)))))
+
 
 ;;; Example usage (with-genyms):
 ;; (with-genyms (a b c)
 ;;   (println "hello" a))
 
+(defmacro with-genyms [syms & body]
+  (println "syms:" syms)
+  `(let ~(vec (mapcat #(list `~% `(gensym)) syms))
+     ~@body))
+
+
 ;;; condlet
 ;;; Usage:
-(condlet (((= 1 2) (x 'a) (y 'b))
-          ((= 1 1) (y 'c) (x 'd))
-	  (:else   (x 'e) (z 'f)))
-	 (list x y z))
+;; (condlet (((= 1 2) (x 'a) (y 'b))
+;;           ((= 1 1) (y 'c) (x 'd))
+;; 	  (:else   (x 'e) (z 'f)))
+;; 	 (list x y z))
 ;;; The result will be (d c nil)
 
-;;; vars:    will be a list of (symbol, gensym).
+;;; vars:    is a sorted-map with symbol name as key and gensym as value
 ;;; clauses: a condlet clause
 ;;; This function should return the list of bindings that should be established for the clause
 (defn condlet-binds [vars clause]
   (vec (mapcat (fn [bindform]
 		 (if (list? bindform)
-		   (list (second (first (exists? vars (first bindform) :test #(= (first %1) %2))))
+		   (list (get vars (first bindform))
 			 (second bindform))))
 	       (rest clause))))
+
 
 ;;; This function should complete the `cond` form.
 ;;; For the above usage the input to this function will be
@@ -160,21 +164,25 @@
 ;; 	  (:else   (x 'e) (z 'f)))
 ;;; With the above input the function should turn things as correct parameters for cond
 (defn condlet-clause [vars clause bodfn]
-  `(~(first clause) (let ~(vec (mapcat #(list (second %) nil) vars))
+  `(~(first clause) (let ~(conj (vec (interpose nil (vals vars))) nil)
 		      (let ~(condlet-binds vars clause)
 			(~bodfn ~@(mapcat rest vars))))))
+
 
 (defmacro condlet [clauses & body]
   (let [bodfn (gensym)
 	vars (->> clauses
-		 (mapcat rest ,,,)
-		 (map first ,,,)
-		 (distinct ,,,)
-		 (map (fn [v] (list v (gensym))) ,,,))]
-    `(letfn [(~bodfn ~(vec (map first vars))
+		  (mapcat rest ,,,)
+		  (map first ,,,)
+		  (distinct ,,,)
+		  (reduce (fn [var-map v]
+			    (assoc var-map v (gensym)))
+			  (sorted-map) ,,,))]
+    
+    `(letfn [(~bodfn ~(vec (keys vars))
 		     ~@body)]
        (cond ~@(mapcat (fn [clause]
-		      (condlet-clause vars  clause bodfn))
-		    clauses)))))
+			 (condlet-clause vars  clause bodfn))
+		       clauses)))))
 
 
