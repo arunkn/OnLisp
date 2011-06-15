@@ -1,0 +1,218 @@
+* Chapter 9: Variable Capture
+Variable Capture: macroexpansion causing name clash.
+** Macro Argument Capture
+   - An argument passed to the macro inadvertantly refers to a macro variable
+Eg:
+(defmacro for ((var start end) &body body)
+  `(do ((,var ,start (1+ ,var))
+        (limit ,stop))
+       ((> ,var limit))
+      ,@body))
+
+   - Here *limit* is a variable created by the macro. If the symbol name passed to the macro
+     is also limit then it will expose the bug.
+
+** Free Symbol Capture
+    - The macro itself contains a symbol which inadvertantly refers to a binding in the
+      environment where the macro is expanded.
+    - In the following example the macro *gripe* believes that there exists a variable *w*
+      where it can store all the warning.
+
+(defvar w nil)
+(defmacro gripe (warning)
+   `(progn (setq w (nconc w (list , warning))
+   nil))
+
+    - However if variable *w* is shadowed in the caller then macro will end up destroying *w*
+
+** When Capture Occurs
+   - Free: A symbol *s* occurs free in an expression when it is used as a variable in that expression,
+     but the expression does not create a binding for it.
+
+(let ((x y) (z 10))
+  (list w x y z))
+
+   - w x y z - all are free vairables in the context of the list call.
+   - x z     - These bindings are being created by the let call. But y and w are still free.
+
+   - Skeleton: The skeleton of a macro expansion is the whole expansion minus anything which was part
+     of an argument in the macro call.
+
+(defmacro foo (x y)
+  `(/ (+ ,x 1) ,y))
+ 
+Skeleton:
+(/ (+    1)   ))
+
+   - Capturable: A symbol is capturable in some macro expansion if
+     1. It occurs free in the skeleton of the macro expansion
+     2. It is bound by a part of the skeleton in which arguments passed to the macro are either bound or
+	evaluated
+
+** Avoiding Capture With Better Names
+   - In the case of Free Symbol Capture for warnings. The author of gripe should have named warning as
+     *warning* instead of 'w' because it is a global
+
+** Avoid Capture By Prior Evaluation
+   - Sometimes it is easy to avoid variable capture by prior evaluation
+   - Also it is dangerous to evaluate things *out of order*
+
+Eg. Wrong
+(defmacro before (x y seq)
+  `(let ((seq ,seq))
+     (< (position ,x seq)
+        (position ,y seq))))
+
+Right
+(defmacro before (x y seq)
+  `(let ((xval ,x) (yval ,y) (seq ,seq))
+     (< (position xval seq)
+        (position yval seq))))
+     
+** Avoiding Capture with Gensyms
+The certain way to avoid variable capture is by using gensyms
+
+Eg. Wrong
+(defmacro for ((var start end) &body body)
+  `(do ((,var ,start (1+ ,var))
+        (limit ,stop))
+       ((> ,var limit))
+       ,@body))
+
+Correct:
+(defmacro for ((var start end) &body body)
+  (let ((gstop (gensym)))
+    `(do ((,var ,start (1+ ,var))
+          (,gstop ,stop))
+	 ((> ,var ,gstop))
+         ,@body)))
+
+
+* Chapter 10: Other Macro Pitfalls
+** Number Of Evaluations
+It is incorrect to assume that the arguments that will be passed to a macro will be values.
+They could be forms with side effects.
+
+Eg. Wrong: ,stop in the condition would be evaluated every time in the iteration
+(defmacro for ((var start stop) &body body)
+   `(do ((,var ,start (1+ ,var)))
+       ((> ,var ,stop))
+       ,@body))
+
+Correct: ,stop is captured in a variable and the value is used as the termination condition
+(defmacro for ((var start stop) &body body)
+   (let ((gstop (gensym)))
+      `(do ((,var ,start (1+ ,var))
+            (,gstop ,stop))
+	   ((> ,var ,gstop))
+	   ,@body)))
+
+** Order of Evaluation
+Sometimes order of evaluation becomes an issue. It is always safe to evaluate arguments in the
+same order as it was passed.
+
+Eg. Wrong: (,gstop ,stop) assignment is being done before assignment of var to start is being
+made.
+(defmacro for ((var start stop) &body body)
+  (let ((gstop (gensym)))
+     `(do ((,gstop ,stop)
+           (,var ,start (1+ ,var)))
+	  ((> ,var ,gstop))
+	  ,@body)))
+
+** Non-functional Expanders
+Macro code should be strictly functional and, in the case of common lisp, should not do any
+distructive operation on its functions
+
+** Recursion
+Do not forget that the macros will never see the actual values passed as parameters.
+They will only work on symbols. The following function and the macro are not equivalent.
+
+Eg. Correct function
+(defun nth-func (n lst)
+   (if (= n 0)
+      (car lst)
+      (nth-func (1- n) (cdr lst))))
+
+Wrong:
+(defmacro nth-macro (n lst)
+  `(if (= ,n 0)
+     (car ,lst)
+     (nth-macro (1- ,n) (cdr ,lst))))
+
+The reason this is wrong is that the macro version of nth will never have access to the value of n.
+All it sees is the symbol. The macro will run into an infinite loop while compilation.
+The macro expansion would look like
+
+(if (= n 0)
+  (car lst)
+  (if (= (1- n) 0)
+    (car (cdr lst))
+    (nth-macro (1- (1- n)) (cdr (cdr lst)))))
+
+
+* Chapter 11: Classic Macros
+   1. Macros which set up context
+   2. Conditional evaluation
+   3. Repeated evaluation
+
+** Creating Context
+nCreating context could be done with let. So a macro could generate a let to create a context.
+(let ((x 'b))
+   (list x))
+
+An operator which will have a body of expressions will usually be created with a macro.
+
+Eg. Our version of let
+(defmacro our-lte (binds &body body)
+  `((lambda ,(mapcar #'(lambda (x)
+                          (if (consp x) (car x) x))
+			  binds)
+     ,@body)
+     ,@(mapcar #'(lambda (x)
+                    (if (consp x) (cadr x) nil))
+	       binds)))
+
+(defmacro when-bind ((var expr) &body body)
+  `(let ((,var ,expr))
+     (when ,var
+       ,@body)))
+
+
+Evaluate the body only if all the bindings are true
+(defmacro when-bind* (binds &body body)
+  (if (null binds)
+    `(progn ,@body)
+    `(let (,(car binds))
+       (if ,(caar binds)
+         (when-bind* ,(cdr binds) ,@body)))))
+
+(defmacro with-gensyms (syms &body body)
+  `(let ,(mapcar #'(lambda (s) `(,s (gensym)))
+                 syms)
+      ,@body))
+
+*NOTE*: with-gensyms won't work directly with clojure or scheme because unknown symbols are automatically
+resolved to the current namespace. To avoid such cases in clojure use `~
+
+
+condlet macro
+-------------
+It is a combination of cond and let. It takes a list of clauses and creates bindings
+based on the clauses.
+
+Usage:
+(condlet (((= 1 2) (x (princ 'a)) (y (princ 'b)))
+          ((= 1 1) (y (princ 'c)) (x (princ 'd)))
+	  (t       (x (princ 'e)) (z (princ 'f))))
+  (list x y z))
+
+This will pring *CD* and return *(D C NIL)* 
+
+(defmacro condlet (clauses &body body)
+  (let ((bodfn (gensym))
+        (vars (mapcar #'(lambda (v) (cons v (gensym)))
+	              (remove-duplicates
+		        (mapcar #'car
+			        (mappend #'cdr clauses)))))
+    `(labels ((,bodfn ,(mapcar #'car vars)
