@@ -139,30 +139,34 @@
 ;;; Usage:
 ;; (condlet (((= 1 2) (x 'a) (y 'b))
 ;;           ((= 1 1) (y 'c) (x 'd))
-;; 	  (t       (x 'e) (z 'f)))
+;; 	  (:else   (x 'e) (z 'f)))
 ;; 	 (list x y z))
-;;; The result will be ('d 'c nil)
+;;; The result will be (d c nil)
 
 ;;; TODO: Finish condlet
-;; (defn condlet-clause [vars clause bodfn]
-;;   `(~(first clause) (let ~(vec (mapcat rest vars))
-;; 		      (let ~(condlet-binds vars clause)
-;; 			(~bodfn ,@(mapcat rest vars))))))
+(defn condlet-binds [vars clause]
+  (vec (mapcat (fn [bindform]
+		 (if (list? bindform)
+		   (list (second (first (exists? vars (first bindform) :test #(= (first %1) %2))))
+			 (second bindform))))
+	       (rest clause))))
 
-;; (defmacro condlet [clauses & body]
-;;   (let [bodfn (gensym)
-;; 	vars (->> clauses
-;; 		 (mapcat rest ,,,)
-;; 		 (map first ,,,)
-;; 		 (distinct ,,,)
-;; 		 (map (fn [v] (list v (gensym))) ,,,))]
-;;     `(letfn [(~bodfn ~(vec (map first vars))
-;; 		     ~@body)]
-;;        (cond ~@(map (fn [clause]
-;; 		      (condlet-clause vars  clause bodfn))
-;; 		    clauses)))))
+(defn condlet-clause [vars clause bodfn]
+  `(~(first clause) (let ~(vec (mapcat #(list (second %) nil) vars))
+		      (let ~(condlet-binds vars clause)
+			(~bodfn ~@(mapcat rest vars))))))
 
-;; (condlet (((= 1 2) (x 'a) (y 'b))
-;;           ((= 1 1) (y 'c) (x 'd))
-;; 	  (t       (x 'e) (z 'f)))
-;; 	 (list x y z))
+(defmacro condlet [clauses & body]
+  (let [bodfn (gensym)
+	vars (->> clauses
+		 (mapcat rest ,,,)
+		 (map first ,,,)
+		 (distinct ,,,)
+		 (map (fn [v] (list v (gensym))) ,,,))]
+    `(letfn [(~bodfn ~(vec (map first vars))
+		     ~@body)]
+       (cond ~@(mapcat (fn [clause]
+		      (condlet-clause vars  clause bodfn))
+		    clauses)))))
+
+
