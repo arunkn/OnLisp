@@ -279,3 +279,4 @@ There are a few other macros inq, inf, >case and >cases in macros.clj
 *NOTE: Both common lisp and clojure assume that the keys are constant
 
 macros.clj defines a *>case* macro which looks more like a `switch` statement
+

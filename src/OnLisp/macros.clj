@@ -133,7 +133,6 @@
 ;;   (println "hello" a))
 
 (defmacro with-genyms [syms & body]
-  (println "syms:" syms)
   `(let ~(vec (mapcat #(list `~% `(gensym)) syms))
      ~@body))
 
@@ -233,4 +232,32 @@
      `(let [~g ~expr]
 	(cond ~@(mapcat #(>casex g %)
 			(partition 2 clauses)))))))
+
+
+;;; Example Usage
+;; (do-tuples-open (x y) '(a b c)
+;; 		(list x y))
+;;; => ((a b) (b c))
+(defmacro do-tuples-open [parms source & body]
+  (if parms
+    (let [src `src#]
+      `(let [~src ~source]
+	 (map (fn ~(vec parms) ~@body)
+	      ~@(map-0->n (fn [n] `(nthnext ~src ~n))
+			  (dec (count parms))))))))
+
+
+;;; Example Usage:
+;; (do-tuples-closed (x y z) '(a b c d)
+;; 		 (list x y z))
+;; ((a b c) (b c d) (c d a) (d a b))
+(defmacro do-tuples-closed [parms source & body]
+  (if parms
+    (with-genyms [src s extra p]
+      `(let [~s ~source
+	     ~extra (sublist ~s 0 ~(dec (count parms)))
+	     ~src (concat ~s ~extra)]
+	 (map (fn ~(vec parms) ~@body)
+	      ~@(map-0->n (fn [n] `(nthnext ~src ~n))
+			  (dec (count parms))))))))
 

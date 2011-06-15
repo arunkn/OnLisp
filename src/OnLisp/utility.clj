@@ -21,6 +21,11 @@
       coll
       (recur (next coll) (dec lth)))))
 
+(defn sublist [lst start & [end]]
+  (if end
+    (seq (subvec (vec lst) start end))
+    (seq (subvec (vec lst) start))))
+
 (defn mklist [obj]
   (if (list? obj)
     obj
@@ -169,10 +174,10 @@
       (recur (+ step i) (conj! result (fn i))))))
 
 (defn map-0->n [fn n & {:keys [step] :or {step 1}}]
-  (map-a->b fn 0 n step))
+  (map-a->b fn 0 n :step step))
 
 (defn map-1->n [fn n & {:keys [step] :or {step 1}}]
-  (map-a->b fn 1 n step))
+  (map-a->b fn 1 n :step step))
 
 (defn map-> [fn start test-fn succ-fn]
   (loop [i start
