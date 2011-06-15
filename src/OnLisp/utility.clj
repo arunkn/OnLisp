@@ -95,7 +95,7 @@
   (when lst
     (if (test (first lst) obj )
       lst
-      (recur (next lst) obj test))))
+      (recur (next lst) obj {:test test}))))
 
 
 (defn before [lst x y & {:keys [test] :or {test =}}]
@@ -103,7 +103,7 @@
     (let [f (first lst)]
       (cond (test x f) lst
             (test y f) false
-            :else (recur (rest lst) x y test)))))
+            :else (recur (rest lst) x y {:test test})))))
 
 (defn after [lst x y & {:keys [test] :or {test =}}]
   (let [rst (before lst y x :test test)]
