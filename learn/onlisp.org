@@ -209,10 +209,73 @@ Usage:
 
 This will pring *CD* and return *(D C NIL)* 
 
-(defmacro condlet (clauses &body body)
-  (let ((bodfn (gensym))
-        (vars (mapcar #'(lambda (v) (cons v (gensym)))
-	              (remove-duplicates
-		        (mapcar #'car
-			        (mappend #'cdr clauses)))))
-    `(labels ((,bodfn ,(mapcar #'car vars)
+Look at Onlisp/src/macros.clj for a clojure implementation
+
+** The with- macro
+They are useful to create contexts.
+Eg.
+(with-open-file (s "dump" :direction :output)
+  (princ 99 s))
+
+Reasons why with-open-file should be a macro
+   - It creates a new binding for *s*
+   - It creates a context
+
+In common lisp the ignore-errors is defined as a macro.
+It creates a `progn` and if there is any error inside the body then the construct
+returns a nil. Though ignore-errors creates no bindings it has to be macro because
+it *creates a context*
+
+Context creating macros generally insert code before or after the body
+  - Before: To set new bindings for variables
+  - After: To leave the system in a consistent shape.
+
+Generally macros like with-open-file generate (unwind-protect) form, which is similar
+to 'finally' block so that it can put the code which does the cleanup there.
+
+
+  - The context can be created either directly in the body like
+
+(defmacro mymacro (vars &body body)
+  (initialization of context)
+  body
+  (reset the variables))
+
+  - Context can also be created as anonymous functions
+(defun set-context-right (old-vals new-vals bodfn)
+  (set-initial-values new-vals)
+  (bodfn)
+  (set-context-back old-vals))
+    
+(defmacro mymacro (vars &body body)
+  (let ((bodfn (gensym)))
+      `(let ((,bodfn (lambda () ,@body)))
+         (set-context-right old-vals new-vals bodfn))))
+    
+
+** Conditional Evaluation
+Functions are incapable of protecting their arguments from being executed.
+
+Example or function
+(let ((x (foo)))
+  (or (eql x (bar)) (eql x (baz))))
+
+This equality checking is not very expressive. There is a (member) function which does this.
+(member x (list (bar) (baz)))
+
+However this function has 2 disadvantages
+   - It has to create a new list with (bar) and (baz) unnecessarily; which means it is
+     inefficient
+   - (bar) and (baz) will get evaluated when the new list is created. So it is not the
+     same as having a or
+
+(defmacro in (obj &rest choices)
+  (let ((insym (gensym)))
+    `(let ((,insym ,obj))
+       (or ,@(mapcar #'(lambda (c) '(eql ,insym c))
+                     choices)))))
+
+There are a few other macros inq, inf, >case and >cases in macros.clj
+*NOTE: Both common lisp and clojure assume that the keys are constant
+
+macros.clj defines a *>case* macro which looks more like a `switch` statement

@@ -146,43 +146,89 @@
 ;; 	 (list x y z))
 ;;; The result will be (d c nil)
 
+;;; condlet-binds:
 ;;; vars:    is a sorted-map with symbol name as key and gensym as value
 ;;; clauses: a condlet clause
 ;;; This function should return the list of bindings that should be established for the clause
-(defn condlet-binds [vars clause]
-  (vec (mapcat (fn [bindform]
-		 (if (list? bindform)
-		   (list (get vars (first bindform))
-			 (second bindform))))
-	       (rest clause))))
 
-
+;;; condlet-clause:
 ;;; This function should complete the `cond` form.
 ;;; For the above usage the input to this function will be
 ;; (((= 1 2) (x 'a) (y 'b))
 ;;           ((= 1 1) (y 'c) (x 'd))
 ;; 	  (:else   (x 'e) (z 'f)))
 ;;; With the above input the function should turn things as correct parameters for cond
-(defn condlet-clause [vars clause bodfn]
-  `(~(first clause) (let ~(conj (vec (interpose nil (vals vars))) nil)
-		      (let ~(condlet-binds vars clause)
-			(~bodfn ~@(mapcat rest vars))))))
-
 
 (defmacro condlet [clauses & body]
-  (let [bodfn (gensym)
-	vars (->> clauses
-		  (mapcat rest ,,,)
-		  (map first ,,,)
-		  (distinct ,,,)
-		  (reduce (fn [var-map v]
-			    (assoc var-map v (gensym)))
-			  (sorted-map) ,,,))]
-    
-    `(letfn [(~bodfn ~(vec (keys vars))
-		     ~@body)]
-       (cond ~@(mapcat (fn [clause]
-			 (condlet-clause vars  clause bodfn))
-		       clauses)))))
+  (letfn [(condlet-binds [vars clause]
+			 (vec (mapcat (fn [bindform]
+					(if (list? bindform)
+					  (list (get vars (first bindform))
+						(second bindform))))
+				      (rest clause))))
+
+	  (condlet-clause [vars clause bodfn]
+	    `(~(first clause) (let ~(conj (vec (interpose nil (vals vars))) nil)
+				(let ~(condlet-binds vars clause)
+				  (~bodfn ~@(mapcat rest vars))))))]
+    (let [bodfn `bodfn#
+	  vars (->> clauses
+		    (mapcat rest ,,,)
+		    (map first ,,,)
+		    (distinct ,,,)
+		    (reduce (fn [var-map v]
+			      (assoc var-map v (gensym)))
+			    (sorted-map) ,,,))]
+      
+      `(letfn [(~bodfn ~(vec (keys vars))
+		       ~@body)]
+	 (cond ~@(mapcat (fn [clause]
+			   (condlet-clause vars  clause bodfn))
+			 clauses))))))
 
 
+;;; Example Usage
+;;; (in 5 1 2 3 4) => false
+;;; (in 5 1 2 3 4 5) => true
+(defmacro in [obj & choices]
+  (let [insym `insym#]
+    `(let [~insym ~obj]
+       (or ~@(map (fn [c] `(= ~insym ~c))
+		  choices)))))
+
+
+;;; Example usage
+;; (inq 'a b c d e) => false
+;; (inq 'a a b c d e) => true
+(defmacro inq [obj & args]
+  `(in ~obj ~@(map (fn [a] `'~a) args)))
+
+
+;;; Example usage
+;; (in-if #(< 10 %) 1 2 3 4 5) => false
+;; (in-if #(< 10 %) 1 2 3 4 5 20) => true
+(defmacro in-if [func & choices]
+  (let [fnsym `fnsym#]
+    `(let [~fnsym ~func]
+       (or ~@(map (fn [choice] `(~fnsym ~choice))
+		  choices)))))
+
+
+(defmacro >case [expr & clauses]
+  (letfn [(>casex [g cl]
+		  (let [key (first cl)
+			r (rest cl)]
+		    (cond (list? key) `((in ~g ~@key) ~@r)
+			  (= key :else) `(:else ~@r)
+			  :else (throw (IllegalArgumentException. (str "Unknown condition"
+								       key))))))]
+   (let [g (gensym)]
+     `(let [~g ~expr]
+	(cond ~@(map #(>casex g %)
+		     clauses))))))
+
+(let [lst '(1 2 3)]
+  (>case (first lst)
+	 (5      (println "5"))
+	 ("Arun" (println "Arun"))
+	 (:else "Unknown")))
