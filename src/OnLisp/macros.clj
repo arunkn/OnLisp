@@ -66,7 +66,7 @@
 (defmacro cl-do [[& bindings] [test & ret] & body]
   `(loop ~(make-initforms bindings)
      (if ~test
-       (if ~ret (do ~@ret))
+       (do ~@ret)
        (do ~@body
 	   (recur ~@(make-stepforms bindings))))))
 
