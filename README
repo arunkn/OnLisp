@@ -1,10 +1,6 @@
 # OnLisp
 
-FIXME: write description
-
-## Usage
-
-FIXME: write
+A rewrite of the legendary Paul Graham's On Lisp in Clojure
 
 ## License
 
