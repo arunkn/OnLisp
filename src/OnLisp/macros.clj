@@ -318,3 +318,75 @@
                bucket
                remaining)))))
 
+
+(defmacro aif [test-form then-form & else-form]
+  `(let [~'it ~test-form]
+     (if ~'it
+       ~then-form
+       ~(first else-form))))
+
+
+(defmacro awhen [test-form & body]
+  `(aif ~test-form
+	(do
+	  ~@body)))
+
+
+(defmacro awhile [expr & body]
+  `(cl-do [[~'it ~expr ~expr]]
+	  [(not ~'it)]
+	  ~@body))
+
+
+(defmacro aand [& args]
+  (cond (empty? args) true
+	(empty? (next args)) (first args)
+	:else `(aif ~(first args) (aand ~@(next args)))))
+
+
+;;; Example Usage
+;; (acond
+;;  (= 1 2) (println "OMG. Mathematics has gone wrong" it)
+;;  '(1 2 3) (do (println it) it)
+;;  :else (do (println "Something weird happening.") it))
+
+(defmacro acond [& clauses]
+  (when (seq clauses)
+    (let [sym `sym#
+	  cl1 (first (split-at 2 clauses))]
+      `(let [~sym ~(first cl1)]
+      	 (if ~sym
+      	   (let [~'it ~sym]
+      	     ~(second cl1))
+      	   (acond ~@(nnext clauses)))))))
+
+
+;;; Example Usage:
+;; (defn count-instances [obj colls]
+;;   (map (alambda [coll]
+;; 		(if (seq coll)
+;; 		  (+ (if (= obj (first coll)) 1 0)
+;; 		     (self (rest coll)))
+;; 		  0))
+;;        colls))
+
+;;; Input: (count-instances 'a '((a b c) (d a r p a) (d a r) (a a)))
+;;; Output: (1 2 1 2)
+
+(defmacro alambda [parms & body]
+  `(letfn [(~'self ~parms ~@body)]
+     ~'self))
+
+;; (thread-it (list 1 2)
+;; 	   (interleave it it)
+;; 	   (partition 2 it)
+;; 	   (first it)
+;; 	   (= '(1 1) it)
+;; 	   (println it))
+(defmacro thread-it
+  ([x] x)
+  ([x & more]
+    `(let [~'it ~x]
+       (thread-it ~@more))))
+
+

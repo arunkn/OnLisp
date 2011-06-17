@@ -1,5 +1,6 @@
 
 
+
 * Chapter 9: Variable Capture
 Variable Capture: macroexpansion causing name clash.
 ** Macro Argument Capture
@@ -372,3 +373,75 @@ The function nthmost sorts a list and then finds the nth element in it.
 The function (nth-largest) finds the nth larges element by reduction.
 Paul Graham, in On Lisp, explains a method to do the same reduction with macros.
 But his method need not be followed in Clojure.
+
+
+* Chapter 14: Anaphoric Macros
+** Anaphoric Variants
+Variable capture is not always a bad things. They are particularly useful in
+constructing anaphoric macros.
+
+Anaphora is something like a pronoun.
+
+Eg. Without anaphora
+(let ((result (some-calculation)))
+   (if result
+      (foo result)))
+
+with anaphora variable `it`
+(if (some-calculation)
+  (foo it))
+
+Refer to the *aif* implementation
+
+Similarly there are a few other macro implementations (awhen, awhile, acond, aand).
+
+Unlike clojure CL does not allow you to
+create a named lambda. So recursing inside of a lambda is impossible in CL.
+The following creates a lambda named self. So the name self can be used in the
+body of the code as a handle for recursion.
+
+(defmacro alambda (parms &body body)
+  `(labels ((self, parms ,@body))
+  #'self))
+
+NOTE: Since we are using the name of the function to recurse, in Clojure it might
+blow up the stack
+
+
+The next macro ablock is very interesting. It could be used as an enhancement over
+the threading macros -> and ->>. The limitation with the two threading macros is
+that the position of where the stitching occurs is fixed (either first or last pos).
+The thread-it macro in the implementation captures the result of the previous computation
+in the variable *it* and it can be used in the successive computation.
+
+The problem with this is that this approach is pretty imperative and is frowned upon
+(at least by rhickey). That is why there are macros like if-let and when-let.
+
+** Failure
+Common Lisp uses nil is heavily overloaded. It has the following uses.
+   - Empty list
+   - False value
+   - Failure to execute funcitons.
+
+Since this problem is not there clojure we need not consider failure cases
+
+** Referential Transparency
+A language is *referentially transparent* if
+   1) Every subexpression can be replaced by any other that is equal to it in value
+   2) All occurances of an expression within a given context yield the same value
+
+Norvig feels strongly against redefining pre-defined operators like if.
+The operator 'if' is not supposed to create a new context. However using ths same
+name 'if' and defining a new context is violating referential transparency clause 2.
+
+(defmacro if (test then &optional else)
+  `(let ((that ,test))
+     (if that ,then ,else)))
+
+It is okay to have an anaphoric version of 'if' like 'aif' because it expresses the
+fact that it is going to create a new context.
+The current version of both CL and clojure prohibit the redefinition of predefined
+macros. So it is not a cause for concern.
+
+
+* Chapter 15: Macros Returning Functions
