@@ -261,3 +261,18 @@
 	      ~@(map-0->n (fn [n] `(nthnext ~src ~n))
 			  (dec (count parms))))))))
 
+
+;;; Find the nth largest number; the largest one being 0
+
+(defn nth-largest [coll n]
+  (when (> (count coll) n)
+    (let [split (split-at (inc n) coll)
+          bucket (apply sorted-map (mapcat #(list % %)
+                                           (first split)))
+          remaining (second split)]
+      (ffirst (reduce (fn [bucket num]
+                 (let [added (assoc bucket num num)]
+                   (dissoc added (ffirst added))))
+               bucket
+               remaining)))))
+
