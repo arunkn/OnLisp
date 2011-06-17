@@ -1,3 +1,5 @@
+
+
 * Chapter 9: Variable Capture
 Variable Capture: macroexpansion causing name clash.
 ** Macro Argument Capture
@@ -280,3 +282,93 @@ There are a few other macros inq, inf, >case and >cases in macros.clj
 
 macros.clj defines a *>case* macro which looks more like a `switch` statement
 
+** Iteration
+The following macro iterates through the list '(a b c) with binding x & y.
+
+(do-tuples-open (x y) '(a b c)
+		(list x y))
+ => ((a b) (b c))
+
+The following is the closed version of the same.
+One thing to be noticed is that one of the primary differences between
+common lisp and clojure is that in clojure data is immutable. So the
+do-tuples-closed can be written very similar to do-tuples-open using an extra
+concatenation operation. (see the source code)
+
+However it would not be possible to do the same in common lisp because
+we cannot modify the list given to us. Nor can we create a copy of the input
+list because we cannot assume that there wont be any mutations performed on the
+new list by the client.
+
+(do-tuples-closed (x y z) '(a b c d)
+		 (list x y z))
+ => ((a b c) (b c d) (c d a) (d a b))
+
+** Iteration with Multiple Values
+Returning multiple values is not directly supported by clojure as is done by CL.
+The recommended mechanism is to pack the values in a list or a vector and the client
+should unpack the return value.
+Our version of cl-do macro automatically supports destructuring because the 'loop'
+which it uses has support for destructuring.
+
+** Need for Macros
+Macros are not the only means to conditional and repeat evaluation.
+The same could be achieved with closures.
+
+(fnif (rich)
+      #(then-forms)
+      #(else-forms))
+
+But macros make it extremely convenient.
+What macros are particularly good at is taking apart and analysing source code passed
+as arguments.
+
+
+* Chapter 12: Generalized Variables
+To set a variable to a value we use setq.
+(setq lst '(a b c))
+
+setf is an abstraction over setq
+(setf (car lst) 100)
+In the above call setf says set to it that (car lst) evaluates to 100
+
+The first argument is a query.
+The transformation of a query to an assertion is called *inversion*
+All the most frequently used functions like car, cdr, nth, aref, get, gethash etc
+have their corresponding *inversion* functions
+
+An expression which can serve as the first argument to setf is called a *generalized variable*
+
+*SKIPPING THE CHAPTER BECAUSE CLOJURE DOES NOT HAVE SETF*
+
+
+* Chapter 13: Computation at Compile Time
+One of the benefits of using macros could be that computation can me shifted to
+compile time
+
+Eg.
+(defun avg (&rest args)
+ (/ (apply #'+ args) (length args))
+
+In this version count and the extra processing for apply happens in run-time.
+
+Eg 1.
+(defmacro avg (&rest args)
+ `(/ (+ ,@args) ,(length args))
+
+This one performs better.
+
+Eg 2.
+The function most-of inspects its arguments and see if most of the arguments are
+evaluated to true; ie (count args)/2 at least should evaluate to true.
+But to find (count args) the entire list has to be traversed.
+So the function version of most-of is inefficient.
+
+OTOH the most-of-m macro can find the number of arguments passed to it compile time.
+So we can break at any point when we have found as many true values as required.
+
+Eg 3.
+The function nthmost sorts a list and then finds the nth element in it.
+The function (nth-largest) finds the nth larges element by reduction.
+Paul Graham, in On Lisp, explains a method to do the same reduction with macros.
+But his method need not be followed in Clojure.

@@ -262,6 +262,48 @@
 			  (dec (count parms))))))))
 
 
+;;; Shifting computation to compile time
+
+(defn avg [& args]
+  (/ (apply + args) (count args)))
+
+
+(defmacro avg-m [& args]
+  `(/ (+ ~@args) ~(count args)))
+
+
+;;; most-of returns true if more than (count args)/2 arguments passed to it are truth values.
+;;; Ideally we would like the iteration to stop when (> hits (/ (count args) 2).
+;;; But this would not help because (count args) itself has to traverse the entire list
+;;; We could, however shift (count args) to compile time.
+;;; Example Usage
+;; (most-of-m 1 1 false false) => false
+;; (most-of-m 1 1 false false 1) => true
+(defn most-of [& args]
+  (loop [all 0, hits 0, lst args]
+    (if (seq lst)
+      (recur (inc all)
+	     (if (first lst) (inc hits) hits)
+	     (next lst))
+      (> hits (/ all 2)))))
+
+;;; Here (count args) is known at compile time.
+(defmacro most-of-m [& args]
+  (let [counter (count args)
+	required `required#
+	lst `lst#]
+    `(loop [~required ~(int (/ (inc counter) 2)), ~lst '~args]
+       (cond (empty? ~lst) false
+	     (zero? ~required) true
+	     :else (recur (if (first ~lst) (dec ~required) ~required)
+			  (next ~lst))))))
+
+
+;;; Finds the nth largest number in the array. Index starts from '0'
+(defn nthmost [lst n]
+  (nth (sort > lst) n))
+
+
 ;;; Find the nth largest number; the largest one being 0
 
 (defn nth-largest [coll n]

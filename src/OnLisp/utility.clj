@@ -196,6 +196,14 @@
 		   acc))]
     (find-res lsts ())))
 
+(defn maplist [f & colls]
+  (lazy-seq
+   (when (every? seq colls)
+     (let [remaining (map rest colls)
+	   res (apply f colls)]
+       (cons res
+	     (apply maplist f remaining))))))
+
 (defn atom? [arg]
   (not (sequential? arg)))
 
